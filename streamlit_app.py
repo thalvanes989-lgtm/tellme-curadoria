@@ -3,6 +3,10 @@ import pandas as pd
 import plotly.express as px
 import google.generativeai as genai
 import re
+import gspread
+import json
+from datetime import datetime
+import pytz
 
 # --- CONFIGURAÇÃO DA IA E SEGURANÇA ---
 try:
@@ -14,7 +18,27 @@ try:
     else:
         st.error("Nenhum modelo compatível encontrado para esta chave.")
 except Exception as e:
-    st.error("⚠️ Configure a chave GOOGLE_API_KEY nos Secrets do Streamlit para a IA funcionar.")
+    st.error("⚠️ Configure a chave GOOGLE_API_KEY nos Secrets do Streamlit.")
+
+# --- CONEXÃO COM O GOOGLE SHEETS (MÁQUINA DE LEADS) ---
+google_sheets_connected = False
+try:
+    # Puxa o "crachá" do cofre de forma segura
+    credenciais_dict = json.loads(st.secrets["gcp_json"])
+    gc = gspread.service_account_from_dict(credenciais_dict)
+    
+    # Abre a planilha pelo nome exato que você criou
+    planilha = gc.open("Dados - Curadoria TellMe")
+    aba_leads = planilha.worksheet("Leads")
+    aba_uso = planilha.worksheet("Uso")
+    google_sheets_connected = True
+except Exception as e:
+    # Se falhar a conexão, o app continua funcionando silenciosamente, só não salva os dados.
+    pass
+
+def pegar_data_hora():
+    fuso_brasil = pytz.timezone('America/Sao_Paulo')
+    return datetime.now(fuso_brasil).strftime("%d/%m/%Y %H:%M:%S")
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Curadoria TellMe", page_icon="🧡", layout="centered")
@@ -48,7 +72,6 @@ if 'setup_pronto' not in st.session_state:
     
     with st.form("setup"):
         
-        # --- CAPTURA DE LEADS (Nome e E-mail) ---
         st.markdown("### Seus Dados")
         escola = st.text_input("Nome da Escola", placeholder="Ex: Colégio TellMe Prime")
         email = st.text_input("Seu E-mail Corporativo", placeholder="diretor@suaescola.com.br")
@@ -70,6 +93,14 @@ if 'setup_pronto' not in st.session_state:
                 st.session_state.afeto = afeto
                 st.session_state.objetivo = objetivo
                 st.session_state.pedagogia = pedagogia
+                
+                # --- SALVA O LEAD NA PLANILHA ---
+                if google_sheets_connected:
+                    try:
+                        aba_leads.append_row([pegar_data_hora(), escola, email])
+                    except Exception:
+                        pass
+                
                 st.rerun()
             else:
                 st.warning("Por favor, preencha o Nome da Escola e o seu E-mail para continuarmos.")
@@ -125,6 +156,13 @@ else:
                         soma_notas = sum(notas)
                         nota_final = round((soma_notas / 25) * 10)
                         
+                        # --- SALVA O USO NA PLANILHA ---
+                        if google_sheets_connected:
+                            try:
+                                aba_uso.append_row([pegar_data_hora(), st.session_state.email, segmento, objetivo_msg, nota_final])
+                            except Exception:
+                                pass
+
                         if nota_final <= 3:
                             msg_padrao = "Sua mensagem é burocrática. Vamos humanizá-la e mostrar valor."
                         elif nota_final <= 5:
@@ -153,7 +191,6 @@ else:
                         st.markdown("*Envie a sugestão abaixo para fortalecer o elo família-escola.*")
                         st.success(pergunta_match.group(1) if pergunta_match else "Gere uma nova pergunta.")
                         
-                        # --- NOVA SEÇÃO: EDUCAÇÃO SOBRE O PENTÁGONO ---
                         st.divider()
                         st.markdown("### 📘 Saiba como criar mensagens que encantam")
                         st.markdown("*Entenda os 5 pilares que a nossa Curadoria TellMe utiliza para avaliar e transformar a comunicação da sua escola:*")
