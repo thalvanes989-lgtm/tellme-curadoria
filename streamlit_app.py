@@ -73,7 +73,7 @@ if 'setup_pronto' not in st.session_state:
     with st.form("setup"):
         
         st.markdown("### Seus Dados")
-        escola = st.text_input("Nome da Escola", placeholder="Ex: Colégio TellMe Prime")
+        escola = st.text_input("Nome da Escola", placeholder="Ex: Colégio Ipê Amarelo")
         email = st.text_input("Seu E-mail Corporativo", placeholder="diretor@suaescola.com.br")
         
         st.markdown("### Como é a voz da sua escola?")
