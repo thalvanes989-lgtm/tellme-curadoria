@@ -4,10 +4,9 @@ import plotly.express as px
 import google.generativeai as genai
 import re
 
-# --- CONFIGURAÇÃO DA IA ---
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-
+# --- CONFIGURAÇÃO DA IA E SEGURANÇA ---
 try:
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
     modelos_validos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     if modelos_validos:
@@ -15,7 +14,7 @@ try:
     else:
         st.error("Nenhum modelo compatível encontrado para esta chave.")
 except Exception as e:
-    st.error(f"Erro na configuração da API: {e}")
+    st.error("⚠️ Configure a chave GOOGLE_API_KEY nos Secrets do Streamlit para a IA funcionar.")
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Curadoria TellMe", page_icon="🧡", layout="centered")
@@ -35,25 +34,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGO GLOBAL (Alinhada à Esquerda) ---
+# --- LOGO GLOBAL ---
 try:
     st.image("Logo.png", width=180)
 except Exception:
-    st.warning("⚠️ Imagem não encontrada. Verifique se o arquivo na barra lateral se chama exatamente 'Logo.png' (tudo minúsculo).")
+    st.warning("⚠️ Imagem não encontrada. Verifique se o arquivo se chama exatamente 'Logo.png'.")
 
 # --- FLUXO DA APLICAÇÃO ---
 if 'setup_pronto' not in st.session_state:
     
     st.title("Crie mensagens que encantam e conectam as famílias 🧡")
-    st.write("Para que nossa Inteligência Artificial ajude você a transformar comunicados comuns em verdadeiros elos de parceria, precisamos entender o estilo único da sua escola. Ajuste as réguas abaixo para nos ensinar como vocês gostam de conversar.")
+    st.write("Para que nossa Inteligência Artificial ajude você a transformar comunicados comuns em verdadeiros elos de parceria, precisamos entender o estilo único da sua escola.")
     
     with st.form("setup"):
         
-        # --- NOVO BLOCO DO NOME DA ESCOLA (Maior e com destaque) ---
-        st.markdown("### Nome da Escola")
-        escola = st.text_input("escola_input", placeholder="Ex: Colégio Ipê Amarelo", label_visibility="collapsed")
+        # --- CAPTURA DE LEADS (Nome e E-mail) ---
+        st.markdown("### Seus Dados")
+        escola = st.text_input("Nome da Escola", placeholder="Ex: Colégio TellMe Prime")
+        email = st.text_input("Seu E-mail Corporativo", placeholder="diretor@suaescola.com.br")
         
-        # --- NOVO BLOCO DA VOZ DA ESCOLA (Com a Copy Estratégica) ---
         st.markdown("### Como é a voz da sua escola?")
         st.markdown("*Esta é a chave para a personalização. Ao definir o perfil da sua instituição, você calibra a nossa IA para criar comunicados autênticos e alinhados aos seus valores, poupando o seu tempo de revisão.*")
         
@@ -63,19 +62,21 @@ if 'setup_pronto' not in st.session_state:
         pedagogia = st.slider("Nível Pedagógico (0 = Linguagem Leiga e Traduzida | 5 = Termos Técnicos e Científicos)", 0, 5, 2)
         
         if st.form_submit_button("Preparar meu Consultor TellMe"):
-            if escola:
+            if escola and email:
                 st.session_state.setup_pronto = True
                 st.session_state.escola = escola
+                st.session_state.email = email
                 st.session_state.formal = formal
                 st.session_state.afeto = afeto
                 st.session_state.objetivo = objetivo
                 st.session_state.pedagogia = pedagogia
                 st.rerun()
             else:
-                st.warning("Por favor, informe o nome da escola para continuarmos.")
+                st.warning("Por favor, preencha o Nome da Escola e o seu E-mail para continuarmos.")
 
 else:
     st.title(f"Curadoria TellMe: {st.session_state.escola}")
+    st.caption(f"Usuário: {st.session_state.email}")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -91,14 +92,13 @@ else:
                 
                 prompt_sistema = f"""
                 Aja como um Consultor Especialista em Comunicação Escolar da plataforma TellMe. 
-                Sua missão é ajudar a escola a criar mensagens que encantam e conectam as famílias, transformando recados burocráticos em verdadeiras parcerias.
+                Sua missão é ajudar a escola a criar mensagens que encantam e conectam as famílias.
                 
                 ESTILO DE COMUNICAÇÃO DA ESCOLA (Escala 0 a 5):
                 - Formalidade: {st.session_state.formal}/5
                 - Afetividade: {st.session_state.afeto}/5
                 - Objetividade: {st.session_state.objetivo}/5
                 - Nível Pedagógico/Técnico: {st.session_state.pedagogia}/5
-                *Regra de Ouro: O seu conselho e a pergunta gerada DEVEM respeitar estritamente este estilo para não descaracterizar a escola.*
 
                 TAREFA:
                 Avalie a mensagem abaixo para o segmento {segmento} com o objetivo de {objetivo_msg}.
@@ -106,8 +106,8 @@ else:
 
                 FORMATO DE RESPOSTA OBRIGATÓRIO:
                 NOTAS: [nota_clareza],[nota_contexto],[nota_intencionalidade],[nota_sinergia],[nota_simplicidade]
-                FEEDBACK: [Um parágrafo de consultoria focado em engajamento, explicando onde o texto acertou ou errou em relação ao estilo da escola]
-                PERGUNTA: [Uma pergunta prática para o pai fazer ao filho hoje, escrita no tom exato do estilo da escola]
+                FEEDBACK: [Um parágrafo de consultoria explicando os acertos e erros em relação ao estilo da escola]
+                PERGUNTA: [Uma pergunta prática para o pai fazer ao filho hoje, no tom exato do estilo da escola]
 
                 Mensagem para análise: {mensagem_bruta}
                 """
@@ -122,20 +122,19 @@ else:
                     
                     if notas_match:
                         notas = [int(n.strip()) for n in notas_match.group(1).split(',')]
-                        
                         soma_notas = sum(notas)
                         nota_final = round((soma_notas / 25) * 10)
                         
                         if nota_final <= 3:
-                            msg_padrao = "Sua mensagem está funcionando apenas como um recado burocrático. Vamos humanizá-la e mostrar o real valor pedagógico para as famílias."
+                            msg_padrao = "Sua mensagem é burocrática. Vamos humanizá-la e mostrar valor."
                         elif nota_final <= 5:
-                            msg_padrao = "Você entregou a informação básica, mas perdeu a chance de engajar. Faltou contexto para aproximar os pais da escola."
+                            msg_padrao = "Faltou contexto para aproximar os pais da escola."
                         elif nota_final <= 7:
-                            msg_padrao = "Boa comunicação! A informação está clara, mas um pequeno ajuste na intencionalidade pode transformar esse recado em uma verdadeira parceria."
+                            msg_padrao = "Boa! Mas um pequeno ajuste transforma o recado em parceria."
                         elif nota_final <= 9:
-                            msg_padrao = "Excelente! Sua mensagem é empática e gera valor. Ela convida a família a participar ativamente da jornada do aluno."
+                            msg_padrao = "Excelente! Empática e convida a família a participar."
                         else:
-                            msg_padrao = "Padrão Ouro! Esta é a verdadeira 'Conversa que Educa'. Você dominou a comunicação e usou a TellMe com maestria para encantar as famílias!"
+                            msg_padrao = "Padrão Ouro! A verdadeira 'Conversa que Educa'."
 
                         st.markdown(f"<div class='nota-destaque'>Sua nota é {nota_final}/10</div>", unsafe_allow_html=True)
                         st.markdown(f"<div class='nota-mensagem'><em>{msg_padrao}</em></div>", unsafe_allow_html=True)
@@ -151,15 +150,27 @@ else:
                         st.info(feedback_match.group(1) if feedback_match else "Análise concluída.")
                         
                         st.markdown("### 🧡 Momento 'Conversa que Educa'")
-                        st.markdown("*Nosso foco é ajudar sua escola a produzir mensagens que ressoem com os pais e inspirem ações em casa. Envie a sugestão abaixo junto com o seu comunicado para fortalecer o elo família-escola e reforçar o aprendizado.*")
+                        st.markdown("*Envie a sugestão abaixo para fortalecer o elo família-escola.*")
                         st.success(pergunta_match.group(1) if pergunta_match else "Gere uma nova pergunta.")
                         
+                        # --- NOVA SEÇÃO: EDUCAÇÃO SOBRE O PENTÁGONO ---
+                        st.divider()
+                        st.markdown("### 📘 Saiba como criar mensagens que encantam")
+                        st.markdown("*Entenda os 5 pilares que a nossa Curadoria TellMe utiliza para avaliar e transformar a comunicação da sua escola:*")
+                        st.markdown("""
+                        * **🎯 Clareza:** A mensagem vai direto ao ponto? Os pais precisam entender exatamente o que está acontecendo logo na primeira leitura, sem ambiguidades ou ruídos.
+                        * **🌍 Contexto:** O comunicado explica o "porquê" das coisas? Dar contexto transforma um simples aviso burocrático em uma história na qual a família se sente parte.
+                        * **🚀 Intencionalidade:** Qual é o objetivo real do envio? Toda mensagem deve ter um propósito claro sobre o que queremos que a família sinta, reflita ou faça após a leitura.
+                        * **🤝 Sinergia:** O texto aproxima a escola de casa? Uma comunicação sinérgica cria pontes, mostrando que pais e educadores estão no mesmo time pelo desenvolvimento do aluno.
+                        * **🍃 Simplicidade:** O vocabulário é acessível e humano? Evitar termos excessivamente técnicos e frases complexas garante que a mensagem seja acolhedora para todos.
+                        """)
+                        
                 except Exception as e:
-                    st.error(f"Erro ao processar análise: {e}")
+                    st.error(f"Erro ao processar análise. A IA está configurada corretamente? Detalhe: {e}")
         else:
             st.warning("Por favor, cole o rascunho da sua mensagem para ativar a análise.")
 
     st.markdown("<br><br>", unsafe_allow_html=True)
-    if st.button("🔄 Ajustar Estilo da Escola"):
-        del st.session_state.setup_pronto
+    if st.button("🔄 Sair e Ajustar Estilo"):
+        st.session_state.clear()
         st.rerun()
