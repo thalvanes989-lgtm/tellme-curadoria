@@ -5,7 +5,7 @@ import google.generativeai as genai
 import re
 
 # --- CONFIGURAÇÃO DA IA ---
-GOOGLE_API_KEY = "AIzaSyA-ZvZfYO0Z9OUYRW6lXf9crgDH8kZ_0KM"
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 try:
     genai.configure(api_key=GOOGLE_API_KEY)
